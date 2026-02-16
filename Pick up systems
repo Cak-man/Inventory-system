@@ -1,0 +1,102 @@
+using UnityEngine;
+using TMPro;
+using System.Collections;
+
+public class RaycastPickupDrp : MonoBehaviour
+{
+    [Header("Ses Ayarları")]
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioClip pickupSound;
+
+    [Header("UI ve Kamera")]
+    public TextMeshProUGUI messageText;
+    public Camera cam;
+
+    [Header("Objeyi Taşıma Ayarları")]
+    public float rayDistance = 3f;
+    public Transform targetPosition;
+    public Transform parentObject;
+
+    private GameObject heldObject = null;
+
+    void Update()
+    {
+        // 🟩 Obje eldeyse sürekli konumunu güncelle
+        if (heldObject != null)
+        {
+            heldObject.transform.position = targetPosition.position;
+            heldObject.transform.rotation = targetPosition.rotation;
+        }
+
+        if (Input.GetMouseButtonDown(0) && heldObject == null)
+        {
+            TryPickup();
+        }
+
+        if (Input.GetMouseButtonDown(1) && heldObject != null)
+        {
+            DropObject();
+        }
+    }
+
+    void TryPickup()
+    {
+        Ray ray = cam.ScreenPointToRay(Input.mousePosition);
+        RaycastHit hit;
+
+        if (Physics.Raycast(ray, out hit, rayDistance))
+        {
+            if (hit.collider.CompareTag("Collectible"))
+            {
+                heldObject = hit.collider.gameObject;
+
+                // ✅ Son toplanan obje kaydediliyor
+                ItemData.lastCollectedItemName = heldObject.name;
+
+                StartCoroutine(ShowMessage(heldObject.name, 2f));
+
+                heldObject.transform.SetParent(parentObject);
+                heldObject.transform.position = targetPosition.position;
+                heldObject.transform.rotation = targetPosition.rotation;
+
+                Rigidbody rb = heldObject.GetComponent<Rigidbody>();
+                if (rb != null) rb.isKinematic = true;
+
+                Collider col = heldObject.GetComponent<Collider>();
+                if (col != null) col.enabled = false;
+
+                if (audioSource != null && pickupSound != null)
+                {
+                    audioSource.PlayOneShot(pickupSound);
+                }
+            }
+        }
+    }
+
+    void DropObject()
+    {
+        heldObject.transform.SetParent(null);
+
+        Rigidbody rb = heldObject.GetComponent<Rigidbody>();
+        if (rb == null)
+            rb = heldObject.AddComponent<Rigidbody>();
+
+        rb.isKinematic = false;
+
+        Collider col = heldObject.GetComponent<Collider>();
+        if (col != null)
+            col.enabled = true;
+
+        // 🧹 BIRAKILDIĞINDA SON TOPLANAN OBJE TEMİZLENİR
+        ItemData.lastCollectedItemName = "";
+
+        heldObject = null;
+    }
+
+    IEnumerator ShowMessage(string message, float delay)
+    {
+        messageText.text = message;
+        yield return new WaitForSeconds(delay);
+        messageText.text = "";
+    }
+}
